@@ -1,0 +1,113 @@
+CREATE DATABASE IF NOT EXISTS rtatsa2c_db;
+USE rtatsa2c_db;
+
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(150) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role ENUM('USER','ADMIN') DEFAULT 'USER',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE nodes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    node_name VARCHAR(100) NOT NULL,
+    node_type ENUM('FOG','CLOUD_VM') NOT NULL,
+    cpu_capacity DOUBLE NOT NULL,
+    memory_capacity DOUBLE NOT NULL,
+    reliability_score DOUBLE DEFAULT 0.95,
+    trust_score DOUBLE DEFAULT 0.90,
+    availability ENUM('ONLINE','OFFLINE','MAINTENANCE') DEFAULT 'ONLINE',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE tasks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    task_name VARCHAR(200) NOT NULL,
+    description TEXT,
+    priority ENUM('LOW','MEDIUM','HIGH','CRITICAL') DEFAULT 'MEDIUM',
+    execution_time INT NOT NULL,
+    cpu_required DOUBLE NOT NULL,
+    memory_required DOUBLE NOT NULL,
+    delay_sensitivity ENUM('DELAY_SENSITIVE','DELAY_TOLERANT') DEFAULT 'DELAY_TOLERANT',
+    status ENUM('PENDING','RUNNING','COMPLETED','FAILED') DEFAULT 'PENDING',
+    assigned_node VARCHAR(100),
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE task_segments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    task_id INT NOT NULL,
+    segment_index INT NOT NULL,
+    segment_name VARCHAR(100),
+    assigned_node_id INT,
+    cpu_allocated DOUBLE,
+    memory_allocated DOUBLE,
+    status ENUM('PENDING','RUNNING','COMPLETED','FAILED') DEFAULT 'PENDING',
+    start_time TIMESTAMP NULL,
+    end_time TIMESTAMP NULL,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (assigned_node_id) REFERENCES nodes(id) ON DELETE SET NULL
+);
+
+CREATE TABLE performance_reports (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    task_id INT NOT NULL,
+    makespan DOUBLE,
+    resource_utilization DOUBLE,
+    reliability_score DOUBLE,
+    fault_tolerance_score DOUBLE,
+    scalability_index DOUBLE,
+    algorithm_used VARCHAR(50) DEFAULT 'RTATSA2C-v2',
+    report_file_url TEXT,
+    generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+);
+
+CREATE TABLE notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    message TEXT NOT NULL,
+    type ENUM('SUCCESS','ERROR','INFO','WARNING') DEFAULT 'INFO',
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE scheduling_config (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    param_name VARCHAR(100) UNIQUE NOT NULL,
+    param_value VARCHAR(255) NOT NULL,
+    description TEXT
+);
+
+-- Seed admin + test user
+INSERT INTO users (name, email, password, role) VALUES
+('Admin', 'admin@gmail.com', 'admin123', 'ADMIN'),
+('Test User', 'user@gmail.com', 'user123', 'USER');
+
+-- Seed nodes
+INSERT INTO nodes (node_name, node_type, cpu_capacity, memory_capacity, reliability_score, trust_score, availability) VALUES
+('FogNode-01', 'FOG', 4.0, 2048, 0.97, 0.95, 'ONLINE'),
+('FogNode-02', 'FOG', 8.0, 4096, 0.95, 0.92, 'ONLINE'),
+('FogNode-03', 'FOG', 4.0, 2048, 0.90, 0.88, 'MAINTENANCE'),
+('CloudVM-01', 'CLOUD_VM', 16.0, 16384, 0.99, 0.98, 'ONLINE'),
+('CloudVM-02', 'CLOUD_VM', 32.0, 32768, 0.98, 0.97, 'ONLINE'),
+('CloudVM-03', 'CLOUD_VM', 64.0, 65536, 0.96, 0.94, 'ONLINE');
+
+-- Seed scheduling config
+INSERT INTO scheduling_config (param_name, param_value, description) VALUES
+('DISCOUNT_FACTOR', '0.99', 'A2C discount factor for future reward estimation'),
+('TRUST_WEIGHT', '0.35', 'Weight given to node trust score in scheduling decision'),
+('RELIABILITY_WEIGHT', '0.30', 'Weight given to node reliability score'),
+('CAPACITY_WEIGHT', '0.20', 'Weight given to CPU/memory capacity ratio'),
+('TYPE_WEIGHT', '0.15', 'Weight for fog vs cloud node preference'),
+('LSTM_MEMORY_DECAY', '0.85', 'LSTM baseline memory decay factor per node index'),
+('DQN_EPSILON', '0.15', 'DQN baseline epsilon-greedy exploration rate'),
+('DQN_DISCOUNT', '0.95', 'DQN baseline discount factor for Q-value computation'),
+('VM_SCALE_TRIGGER', '0.85', 'Resource utilization threshold to trigger VM scaling'),
+('MAX_TASK_SEGMENTS', '4', 'Maximum segments a task can be split into');
